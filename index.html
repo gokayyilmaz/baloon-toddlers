@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Baloon-Toddlers</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap");
+
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+        background-color: #38003c; /* Dark purple/black background */
+        font-family: "Press Start 2P", cursive;
+        flex-direction: column;
+        text-align: center;
+        overflow: hidden;
+        position: relative;
+      }
+      h1 {
+        color: #ff9d00; /* Neon orange title */
+        text-shadow: 4px 4px 0px #000;
+        margin-bottom: 20px;
+        font-size: 2.5em;
+        letter-spacing: 5px;
+        white-space: nowrap; /* Ensures the text stays on a single line */
+      }
+      canvas {
+        border: 5px solid #ff0099; /* Neon pink border */
+        background-color: #00003c; /* Dark blue/black background */
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5), inset 0 0 10px #ff0099;
+        border-radius: 5px;
+        image-rendering: pixelated;
+      }
+      #info-text {
+        margin-top: 20px;
+        font-size: 1em;
+        color: #00ffcc; /* Neon cyan color */
+        font-weight: bold;
+        text-shadow: 2px 2px #000;
+      }
+      .retro-element {
+        position: absolute;
+        font-size: 2.5em;
+        color: #ff0099;
+        text-shadow: 2px 2px #00ffcc;
+        transform: rotate(-10deg);
+        transition: all 0.5s ease-in-out;
+        cursor: default;
+        z-index: -1;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🎈 BALOON TODDLERS 🎈</h1>
+    <canvas id="gameArea" width="1000" height="750"></canvas>
+    <div id="info-text">HIT SPACEBAR OR CLICK BALOONS</div>
+
+    <script>
+      // Dynamically create retro elements
+      const retroEmojis = ["👾", "🛸", "🚀", "🕹️", "⭐", "⚡", "🤖", "👽"];
+      function createRetroElements(count, side) {
+        const spacing = 100 / (count + 1); // Calculate vertical spacing between elements
+        for (let i = 0; i < count; i++) {
+          const element = document.createElement("div");
+          element.className = "retro-element";
+          element.innerText =
+            retroEmojis[Math.floor(Math.random() * retroEmojis.length)];
+
+          const randomRotation = Math.random() * 30 - 15;
+          const randomSize = Math.random() * 1.5 + 1;
+          const topPosition = (i + 1) * spacing;
+
+          element.style.top = `${topPosition}%`;
+          element.style.transform = `rotate(${randomRotation}deg) scale(${randomSize})`;
+          element.style.fontSize = `${randomSize * 2.5}em`;
+
+          if (side === "left") {
+            const randomLeft = Math.random() * 15;
+            element.style.left = `${randomLeft}%`;
+          } else {
+            const randomRight = Math.random() * 15;
+            element.style.right = `${randomRight}%`;
+          }
+
+          document.body.appendChild(element);
+        }
+      }
+      createRetroElements(5, "left");
+      createRetroElements(5, "right");
+
+      // Get canvas and 2D context
+      const canvas = document.getElementById("gameArea");
+      const ctx = canvas.getContext("2d");
+
+      // A function to create the balloon pop sound
+      function playPopSound() {
+        try {
+          // Creating a more percussive pop sound using the Web Audio API
+          const audioCtx = new (window.AudioContext ||
+            window.webkitAudioContext)();
+          const oscillator = audioCtx.createOscillator();
+          const gainNode = audioCtx.createGain();
+
+          oscillator.type = "sawtooth"; // Sawtooth wave type, a sharper sound
+          oscillator.frequency.setValueAtTime(440, audioCtx.currentTime); // Initial frequency
+          gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
+
+          oscillator.connect(gainNode);
+          gainNode.connect(audioCtx.destination);
+
+          oscillator.start(audioCtx.currentTime);
+          // An exponential ramp down for a quick fall-off
+          gainNode.gain.exponentialRampToValueAtTime(
+            0.00001,
+            audioCtx.currentTime + 0.1
+          );
+          // To stop the sound very quickly
+          oscillator.stop(audioCtx.currentTime + 0.1);
+        } catch (e) {
+          // To avoid errors if the sound cannot be played
+          console.error("Could not play sound: ", e);
+        }
+      }
+
+      // List of balloons and surprises for the game
+      const balloons = [];
+      const emojis = [
+        "🐶",
+        "🐱",
+        "🐰",
+        "🦁",
+        "🍎",
+        "🍊",
+        "🍓",
+        "🍌",
+        "🌈",
+        "🍭",
+        "⭐",
+        "🎈",
+      ];
+      const poppedSurprises = [];
+
+      // Balloon class: holds the properties of each balloon (position, size, color)
+      class Balloon {
+        constructor(x, y, radius, color) {
+          this.x = x;
+          this.y = y;
+          this.radius = radius;
+          this.color = color;
+          this.speed = Math.random() * 3 + 1.5; // Balloon's upward movement speed (faster than before)
+          this.emoji = emojis[Math.floor(Math.random() * emojis.length)];
+        }
+        draw() {
+          // Draw the balloon as a circle
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
+          ctx.fillStyle = this.color;
+          ctx.fill();
+
+          // Draw the balloon string
+          ctx.beginPath();
+          ctx.moveTo(this.x, this.y + this.radius);
+          ctx.lineTo(this.x, this.y + this.radius + 50); // String length
+          ctx.strokeStyle = "#666"; // Gray color
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+        move() {
+          // Move the balloon upwards
+          this.y -= this.speed;
+        }
+      }
+
+      // Surprise class: holds the properties of emojis coming out of popped balloons
+      class Surprise {
+        constructor(x, y, emoji) {
+          this.x = x;
+          this.y = y;
+          this.emoji = emoji;
+          this.opacity = 1.0; // Opacity of the emoji
+          this.size = 40; // Initial size of the emoji
+          this.speed = {
+            x: (Math.random() - 0.5) * 4,
+            y: (Math.random() - 0.5) * 4,
+          }; // Random scattering speed of the emoji
+        }
+        draw() {
+          // Draw the emoji
+          ctx.save();
+          ctx.globalAlpha = this.opacity;
+          ctx.font = `${this.size}px 'Segoe UI Emoji', Arial`;
+          ctx.textAlign = "center";
+          ctx.fillText(this.emoji, this.x, this.y);
+          ctx.restore();
+        }
+        move() {
+          // Move the emoji in random directions and fade it out
+          this.x += this.speed.x;
+          this.y += this.speed.y;
+          this.opacity -= 0.01;
+          this.size += 0.5;
+        }
+      }
+
+      // Function to pop a balloon (common for keyboard or touch)
+      function popBalloon(balloonToPop) {
+        // Add a surprise
+        poppedSurprises.push(
+          new Surprise(balloonToPop.x, balloonToPop.y, balloonToPop.emoji)
+        );
+        playPopSound(); // Play the pop sound
+
+        // Remove the popped balloon from the list
+        const index = balloons.indexOf(balloonToPop);
+        if (index > -1) {
+          balloons.splice(index, 1);
+        }
+      }
+
+      // Main game animation loop
+      function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the screen
+
+        // Move, draw, and delete balloons that go off-screen
+        for (let i = balloons.length - 1; i >= 0; i--) {
+          balloons[i].draw();
+          balloons[i].move();
+          // Delete balloon when it goes off the top of the screen
+          if (balloons[i].y + balloons[i].radius < 0) {
+            balloons.splice(i, 1);
+          }
+        }
+
+        // Move, draw, and delete invisible surprises
+        for (let i = poppedSurprises.length - 1; i >= 0; i--) {
+          poppedSurprises[i].draw();
+          poppedSurprises[i].move();
+          // Delete surprises that have faded out
+          if (poppedSurprises[i].opacity <= 0) {
+            poppedSurprises.splice(i, 1);
+          }
+        }
+
+        requestAnimationFrame(animate); // Call the function again to draw the next frame
+      }
+
+      // Listen for spacebar press events
+      window.addEventListener("keydown", (e) => {
+        if (e.code === "Space") {
+          const poppableBalloons = balloons.filter(
+            (balloon) => balloon.y < canvas.height - balloon.radius
+          );
+          if (poppableBalloons.length > 0) {
+            const balloonToPop = balloons[balloons.length - 1];
+            popBalloon(balloonToPop);
+          }
+        }
+      });
+
+      // Listen for screen touch events
+      canvas.addEventListener("mousedown", (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        let closestBalloon = null;
+        let smallestDistance = Infinity;
+
+        balloons.forEach((balloon) => {
+          const distance = Math.sqrt(
+            Math.pow(balloon.x - x, 2) + Math.pow(balloon.y - y, 2)
+          );
+          if (distance < smallestDistance && distance <= balloon.radius) {
+            smallestDistance = distance;
+            closestBalloon = balloon;
+          }
+        });
+
+        if (closestBalloon) {
+          popBalloon(closestBalloon);
+        }
+      });
+
+      // Touch event for mobile devices
+      canvas.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const touch = e.touches[0];
+        const x = touch.clientX - rect.left;
+        const y = touch.clientY - rect.top;
+
+        let closestBalloon = null;
+        let smallestDistance = Infinity;
+
+        balloons.forEach((balloon) => {
+          const distance = Math.sqrt(
+            Math.pow(balloon.x - x, 2) + Math.pow(balloon.y - y, 2)
+          );
+          if (distance < smallestDistance && distance <= balloon.radius) {
+            smallestDistance = distance;
+            closestBalloon = balloon;
+          }
+        });
+
+        if (closestBalloon) {
+          popBalloon(closestBalloon);
+        }
+      });
+
+      // Add new balloons at random intervals
+      setInterval(() => {
+        const radius = Math.random() * 20 + 30; // Random balloon size
+        const x = Math.random() * (canvas.width - radius * 2) + radius;
+        const y = canvas.height + radius;
+        const color = `hsl(${Math.random() * 360}, 70%, 50%)`; // Vibrant, random color
+        balloons.push(new Balloon(x, y, radius, color));
+      }, 1200);
+
+      // Start the animation loop
+      animate();
+    </script>
+  </body>
+</html>
